@@ -46,25 +46,26 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
-    
+
     @Value("${jwt.public.key}")
     RSAPublicKey key;
-    
+
     @Bean
     @Profile("default")
     public RSAPrivateKey privateKey(@Value("${jwt.private.key}") RSAPrivateKey privateKey) {
         return privateKey;
     }
-    
+
     @Bean
     @Profile("aws")
     public RSAPrivateKey privateKeyAws(@Value("${jwt.private.key}") String privateKeyStr) throws Exception {
         return parsePrivateKey(privateKeyStr);
     }
-    
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         // @formatter:off
+        /* 
         http
                 .authorizeHttpRequests((authorize) -> authorize
                         .requestMatchers("/actuator/healt").permitAll()
@@ -80,14 +81,21 @@ public class SecurityConfig {
                         .accessDeniedHandler(new BearerTokenAccessDeniedHandler())
                 );
         // @formatter:on
+        */
+        http
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll())
+                .csrf(csrf -> csrf.disable())
+                .formLogin(form -> form.disable())
+                .httpBasic(httpBasic -> httpBasic.disable());
         return http.build();
     }
-    
+
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-    
+
     @Bean
     public AuthenticationManager authenticationManager() {
         DaoAuthenticationProvider autProvider = new DaoAuthenticationProvider();
@@ -95,13 +103,12 @@ public class SecurityConfig {
         autProvider.setUserDetailsService(userDetailsService);
         return new ProviderManager(autProvider);
     }
-    
-    
+
     @Bean
     JwtDecoder jwtDecoder() {
         return NimbusJwtDecoder.withPublicKey(this.key).build();
     }
-    
+
     @Bean
     @Profile("default")
     JwtEncoder jwtEncoder(RSAPrivateKey privateKey) {
@@ -109,7 +116,7 @@ public class SecurityConfig {
         JWKSource<SecurityContext> jwks = new ImmutableJWKSet<>(new JWKSet(jwk));
         return new NimbusJwtEncoder(jwks);
     }
-    
+
     @Bean
     @Profile("aws")
     JwtEncoder jwtEncoderAws(RSAPrivateKey privateKeyAws) {
@@ -117,7 +124,7 @@ public class SecurityConfig {
         JWKSource<SecurityContext> jwks = new ImmutableJWKSet<>(new JWKSet(jwk));
         return new NimbusJwtEncoder(jwks);
     }
-    
+
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -128,18 +135,18 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-    
+
     private RSAPrivateKey parsePrivateKey(String privateKeyStr) throws Exception {
         String privateKeyPEM = privateKeyStr
                 .replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
                 .replaceAll("\\s+", "");
-        
+
         byte[] decodedKey = Base64.getDecoder().decode(privateKeyPEM);
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decodedKey);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        
+
         return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
     }
-    
+
 }
